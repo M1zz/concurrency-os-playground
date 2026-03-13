@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>동시성과 병렬 프로그래밍을 위한 운영체제</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Gowun+Batang:wght@400;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #0a0a0f;
+    --bg2:        #0f0f18;
+    --bg3:        #14141f;
+    --surface:    #1a1a2e;
+    --border:     #2a2a3e;
+    --border2:    #3a3a5e;
+    --swift:      #f05138;
+    --swift2:     #ff7a5c;
+    --blue:       #4a9eff;
+    --blue2:      #2d7dd2;
+    --purple:     #a855f7;
+    --green:      #34d399;
+    --yellow:     #fbbf24;
+    --text:       #e8e8f0;
+    --text2:      #9898b8;
+    --text3:      #5a5a7a;
+    --mono:       'JetBrains Mono', monospace;
+    --serif:      'Gowun Batang', serif;
+    --sans:       'Space Grotesk', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem;
+    height: 56px;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--swift);
+    letter-spacing: 0.05em;
+  }
+  .nav-links { display: flex; gap: 1.5rem; }
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text2);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--text); }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: flex-start;
+    padding: 0 4rem;
+    overflow: hidden;
+  }
+
+  /* Grid background */
+  .hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 60px 60px;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  /* Glow orbs */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+  }
+  .orb-1 {
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(240,81,56,0.15), transparent 70%);
+    top: -100px; right: -100px;
+  }
+  .orb-2 {
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(74,158,255,0.12), transparent 70%);
+    bottom: 50px; left: 200px;
+  }
+
+  .hero-content { position: relative; z-index: 1; max-width: 900px; }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--swift); letter-spacing: 0.12em;
+    border: 1px solid rgba(240,81,56,0.35);
+    padding: 0.3rem 0.8rem; border-radius: 2px;
+    margin-bottom: 2rem;
+    animation: fadeInUp 0.6s ease both;
+  }
+  .hero-badge::before { content: '▶'; font-size: 0.6rem; }
+
+  .hero-title {
+    font-family: var(--mono);
+    font-size: clamp(2.2rem, 5vw, 4rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    animation: fadeInUp 0.6s 0.1s ease both;
+  }
+  .hero-title .accent { color: var(--swift); }
+  .hero-title .line2 { display: block; color: var(--text2); font-weight: 300; }
+
+  .hero-sub {
+    margin-top: 1.5rem;
+    font-size: 1.05rem;
+    color: var(--text2);
+    font-family: var(--serif);
+    max-width: 600px;
+    animation: fadeInUp 0.6s 0.2s ease both;
+  }
+
+  .hero-meta {
+    margin-top: 2.5rem;
+    display: flex; gap: 2rem; flex-wrap: wrap;
+    animation: fadeInUp 0.6s 0.3s ease both;
+  }
+  .meta-item {
+    display: flex; flex-direction: column; gap: 0.2rem;
+  }
+  .meta-label {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .meta-value {
+    font-family: var(--mono); font-size: 0.9rem;
+    color: var(--text);
+  }
+
+  .hero-cta {
+    margin-top: 3rem;
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    animation: fadeInUp 0.6s 0.4s ease both;
+  }
+  .btn {
+    font-family: var(--mono); font-size: 0.8rem;
+    letter-spacing: 0.05em; text-decoration: none;
+    padding: 0.7rem 1.5rem; border-radius: 2px;
+    transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 0.5rem;
+  }
+  .btn-primary {
+    background: var(--swift); color: #fff;
+    border: 1px solid var(--swift);
+  }
+  .btn-primary:hover { background: var(--swift2); transform: translateY(-1px); }
+  .btn-secondary {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .btn-secondary:hover { border-color: var(--text2); transform: translateY(-1px); }
+
+  .scroll-indicator {
+    position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    font-family: var(--mono); font-size: 0.65rem; color: var(--text3);
+    animation: bounce 2s infinite;
+    z-index: 1;
+  }
+  .scroll-indicator::after {
+    content: '';
+    width: 1px; height: 40px;
+    background: linear-gradient(to bottom, var(--border2), transparent);
+  }
+
+  /* ── CONCEPTS SECTION ── */
+  .section {
+    padding: 6rem 4rem;
+    position: relative;
+  }
+  .section-label {
+    font-family: var(--mono); font-size: 0.7rem;
+    color: var(--swift); letter-spacing: 0.15em;
+    text-transform: uppercase; margin-bottom: 0.75rem;
+  }
+  .section-title {
+    font-size: 2rem; font-weight: 700;
+    line-height: 1.2; margin-bottom: 1rem;
+  }
+  .section-sub {
+    font-family: var(--serif); color: var(--text2);
+    font-size: 1.05rem; max-width: 600px; margin-bottom: 3rem;
+  }
+
+  /* ── UNIT GRID ── */
+  .units-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+
+  .unit-card {
+    background: var(--bg2);
+    padding: 2rem;
+    position: relative;
+    transition: background 0.2s;
+    cursor: default;
+    overflow: hidden;
+  }
+  .unit-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: transparent;
+    transition: background 0.2s;
+  }
+  .unit-card:hover { background: var(--bg3); }
+  .unit-card:hover::before { background: var(--swift); }
+
+  .unit-header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; margin-bottom: 1.2rem;
+  }
+  .unit-num {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--text3); letter-spacing: 0.1em;
+  }
+  .unit-tag {
+    font-family: var(--mono); font-size: 0.6rem;
+    padding: 0.2rem 0.5rem; border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+  .tag-gcd { background: rgba(240,81,56,0.12); color: var(--swift); border: 1px solid rgba(240,81,56,0.25); }
+  .tag-async { background: rgba(74,158,255,0.12); color: var(--blue); border: 1px solid rgba(74,158,255,0.25); }
+  .tag-actor { background: rgba(168,85,247,0.12); color: var(--purple); border: 1px solid rgba(168,85,247,0.25); }
+  .tag-combine { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
+  .tag-os { background: rgba(251,191,36,0.12); color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
+
+  .unit-title {
+    font-size: 1.05rem; font-weight: 700;
+    margin-bottom: 0.4rem; line-height: 1.3;
+  }
+  .unit-subtitle {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--text3); margin-bottom: 1.2rem;
+    line-height: 1.5;
+  }
+
+  .concept-list { list-style: none; }
+  .concept-list li {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    padding: 0.35rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem; color: var(--text2);
+    line-height: 1.45;
+  }
+  .concept-list li:first-child { border-top: none; }
+  .concept-list li::before {
+    content: '—';
+    color: var(--text3); flex-shrink: 0;
+    font-family: var(--mono); font-size: 0.7rem;
+    margin-top: 0.05rem;
+  }
+  .concept-key {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+    padding: 0.05rem 0.3rem; border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  /* ── CONCEPTS DEEP DIVE ── */
+  .concepts-section {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .concept-tabs {
+    display: flex; flex-wrap: wrap; gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 4rem;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    font-family: var(--mono); font-size: 0.72rem;
+    letter-spacing: 0.05em; color: var(--text3);
+    background: none; border: none;
+    padding: 1rem 1.2rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text2); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--swift); }
+
+  .concept-panels { padding: 3rem 4rem; }
+  .concept-panel { display: none; }
+  .concept-panel.active { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; }
+
+  .concept-theory h3 {
+    font-size: 1.2rem; font-weight: 700; margin-bottom: 1rem;
+  }
+  .concept-theory p {
+    font-family: var(--serif); color: var(--text2);
+    font-size: 0.95rem; line-height: 1.8; margin-bottom: 1rem;
+  }
+  .concept-theory ul { list-style: none; }
+  .concept-theory ul li {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--text2);
+    display: flex; gap: 0.8rem; align-items: flex-start;
+  }
+  .concept-theory ul li::before {
+    content: '▸'; color: var(--swift); font-size: 0.65rem; margin-top: 0.15rem;
+  }
+
+  .code-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--swift);
+    border-radius: 4px;
+    padding: 1.5rem;
+    overflow-x: auto;
+  }
+  .code-block pre {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.7;
+    color: var(--text2);
+  }
+  .code-block .kw { color: #f97583; }   /* keyword */
+  .code-block .fn { color: #79b8ff; }   /* function */
+  .code-block .str { color: #9ecbff; }  /* string */
+  .code-block .num { color: #fddb98; }  /* number */
+  .code-block .cmt { color: #6a737d; font-style: italic; }  /* comment */
+  .code-block .type { color: #b392f0; } /* type */
+  .code-block .ok { color: #34d399; }   /* ok/success */
+  .code-block .err { color: #f97583; }  /* error */
+
+  .code-label {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--text3); letter-spacing: 0.1em;
+    margin-bottom: 0.75rem; text-transform: uppercase;
+  }
+
+  /* ── COMPARISON TABLE ── */
+  .compare-section { padding: 6rem 4rem; }
+  .compare-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.83rem;
+  }
+  .compare-table th {
+    font-family: var(--mono); font-size: 0.7rem;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text3); font-weight: 500;
+    padding: 0.75rem 1rem; text-align: left;
+    border-bottom: 1px solid var(--border2);
+  }
+  .compare-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2); vertical-align: top;
+  }
+  .compare-table tr:hover td { background: var(--bg2); }
+  .compare-table td:first-child {
+    font-family: var(--mono); font-size: 0.78rem;
+    color: var(--text);
+  }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono); font-size: 0.65rem;
+    padding: 0.15rem 0.4rem; border-radius: 2px;
+    margin-right: 0.3rem;
+  }
+  .badge-swift { background: rgba(240,81,56,0.15); color: var(--swift); }
+  .badge-gcd { background: rgba(251,191,36,0.15); color: var(--yellow); }
+
+  /* ── CHECKLIST ── */
+  .checklist-section {
+    padding: 6rem 4rem;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+  }
+  .checklist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem; margin-top: 2rem;
+  }
+  .checklist-card {
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    background: var(--bg);
+  }
+  .checklist-card h4 {
+    font-family: var(--mono); font-size: 0.8rem;
+    color: var(--text); margin-bottom: 1rem;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .check-item {
+    display: flex; align-items: flex-start; gap: 0.7rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem; color: var(--text2);
+    cursor: pointer;
+  }
+  .check-item:last-child { border-bottom: none; }
+  .check-box {
+    width: 14px; height: 14px; border-radius: 2px;
+    border: 1px solid var(--border2); flex-shrink: 0;
+    margin-top: 0.1rem; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .check-item.checked .check-box {
+    background: var(--swift); border-color: var(--swift);
+  }
+  .check-item.checked .check-box::after { content: '✓'; font-size: 9px; color: #fff; }
+  .check-item.checked span { text-decoration: line-through; color: var(--text3); }
+
+  /* ── INTERVIEW Q ── */
+  .interview-section { padding: 6rem 4rem; }
+  .qa-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); }
+  .qa-item {
+    background: var(--bg2); padding: 1.5rem 2rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .qa-item:hover { background: var(--bg3); }
+  .qa-q {
+    font-size: 0.9rem; font-weight: 600;
+    display: flex; align-items: flex-start; gap: 1rem;
+  }
+  .qa-q::before {
+    content: 'Q';
+    font-family: var(--mono); font-size: 0.7rem;
+    color: var(--swift); background: rgba(240,81,56,0.12);
+    padding: 0.2rem 0.4rem; border-radius: 2px; flex-shrink: 0;
+    margin-top: 0.05rem;
+  }
+  .qa-a {
+    display: none;
+    margin-top: 1rem; padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--serif);
+    font-size: 0.9rem; color: var(--text2);
+    line-height: 1.8;
+    padding-left: 2.2rem;
+  }
+  .qa-item.open .qa-a { display: block; }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 3rem 4rem;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem;
+  }
+  .footer-brand { font-family: var(--mono); font-size: 0.8rem; color: var(--text2); }
+  .footer-links { display: flex; gap: 1.5rem; }
+  .footer-links a {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--text3); text-decoration: none;
+    transition: color 0.2s;
+  }
+  .footer-links a:hover { color: var(--text2); }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-6px); }
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .hero, .section, .compare-section,
+    .checklist-section, .interview-section { padding-left: 1.5rem; padding-right: 1.5rem; }
+    .hero-title { font-size: 1.8rem; }
+    .concept-panel.active { grid-template-columns: 1fr; }
+    .concept-tabs { padding: 0 1.5rem; }
+    .concept-panels { padding: 2rem 1.5rem; }
+    footer { padding: 2rem 1.5rem; flex-direction: column; }
+    nav { padding: 0 1.5rem; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">개발자리 / concurrency-os</div>
+  <div class="nav-links">
+    <a href="#units">Units</a>
+    <a href="#concepts">Concepts</a>
+    <a href="#compare">비교표</a>
+    <a href="#checklist">체크리스트</a>
+    <a href="#interview">면접 Q&A</a>
+    <a href="https://github.com/your-username/concurrency-os-playground" target="_blank">GitHub</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="hero-content">
+    <div class="hero-badge">iOS Developer Series · 개발자리</div>
+    <h1 class="hero-title">
+      동시성과 병렬<br>
+      프로그래밍을 위한<br>
+      <span class="accent">운영체제</span>
+      <span class="line2">Operating Systems for Concurrency</span>
+    </h1>
+    <p class="hero-sub">
+      GCD의 원리부터 Swift Concurrency·Actor·Combine까지.<br>
+      iOS 개발자 면접 단골 주제 11개 Unit, Xcode Playground로 직접 실습합니다.
+    </p>
+    <div class="hero-meta">
+      <div class="meta-item">
+        <span class="meta-label">Units</span>
+        <span class="meta-value">11</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Level</span>
+        <span class="meta-value">Intermediate</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Platform</span>
+        <span class="meta-value">iOS 15+ / Swift 5.9+</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Format</span>
+        <span class="meta-value">Xcode Playground</span>
+      </div>
+    </div>
+    <div class="hero-cta">
+      <a href="https://github.com/your-username/concurrency-os-playground" class="btn btn-primary" target="_blank">
+        ↓ GitHub에서 열기
+      </a>
+      <a href="#units" class="btn btn-secondary">
+        커리큘럼 보기 →
+      </a>
+    </div>
+  </div>
+  <div class="scroll-indicator">scroll</div>
+</section>
+
+<!-- UNITS -->
+<section class="section" id="units">
+  <div class="section-label">Curriculum</div>
+  <h2 class="section-title">11 Units, 110+ 개념</h2>
+  <p class="section-sub">각 Unit은 OS 이론 → iOS 실전 코드 → 면접 포인트 순으로 구성됩니다.</p>
+
+  <div class="units-grid">
+
+    <!-- U01 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 01</span>
+        <span class="unit-tag tag-os">OS 기초</span>
+      </div>
+      <div class="unit-title">Thread vs Process</div>
+      <div class="unit-subtitle">iOS에서의 실제 의미</div>
+      <ul class="concept-list">
+        <li><span>Process: 독립 메모리 공간 (Code/Data/Heap/Stack)</span></li>
+        <li><span><span class="concept-key">Thread</span>: Heap·Data 공유, Stack 개별 소유</span></li>
+        <li><span><span class="concept-key">Context Switching</span>: Thread < Process 비용</span></li>
+        <li><span>Main Thread: UIKit/SwiftUI 전용, RunLoop 구조</span></li>
+        <li><span><span class="concept-key">Race Condition</span>: 비결정적 공유 자원 접근 버그</span></li>
+        <li><span>Stack vs Heap 메모리 모델</span></li>
+        <li><span>App Sandbox: iOS 앱 = 하나의 Process</span></li>
+        <li><span>Thread-safe: 동시 접근에도 결과 일관성 보장</span></li>
+      </ul>
+    </div>
+
+    <!-- U02 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 02</span>
+        <span class="unit-tag tag-gcd">GCD</span>
+      </div>
+      <div class="unit-title">GCD 기초</div>
+      <div class="unit-subtitle">DispatchQueue · sync vs async · QoS</div>
+      <ul class="concept-list">
+        <li><span>GCD: 스레드 풀 추상화, OS가 스레드 관리</span></li>
+        <li><span><span class="concept-key">Serial Queue</span>: 한 번에 하나, 순서 보장</span></li>
+        <li><span><span class="concept-key">Concurrent Queue</span>: 병렬 실행, 완료 순서 비보장</span></li>
+        <li><span><span class="concept-key">async</span>: Non-blocking 제출, 즉시 반환</span></li>
+        <li><span><span class="concept-key">sync</span>: Blocking 제출, 완료까지 대기</span></li>
+        <li><span><span class="concept-key">DispatchQueue.main</span>: 메인 스레드 직렬 큐</span></li>
+        <li><span>QoS: userInteractive → background 5단계</span></li>
+        <li><span><span class="concept-key">Deadlock</span>: main.sync 교착 패턴</span></li>
+      </ul>
+    </div>
+
+    <!-- U03 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 03</span>
+        <span class="unit-tag tag-gcd">GCD</span>
+      </div>
+      <div class="unit-title">GCD 심화</div>
+      <div class="unit-subtitle">DispatchGroup · Semaphore · Barrier</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">DispatchGroup</span>: 다수 비동기 작업 완료 감지</span></li>
+        <li><span>enter() / leave(): 수동 그룹 카운터 제어</span></li>
+        <li><span>notify vs wait: Non-blocking vs Blocking</span></li>
+        <li><span><span class="concept-key">DispatchSemaphore</span>: 동시 접근 스레드 수 제한</span></li>
+        <li><span>wait() / signal(): 카운터 감소 / 증가</span></li>
+        <li><span><span class="concept-key">Barrier</span>: 쓰기 작업 단독 실행 직렬화</span></li>
+        <li><span>Reader-Writer Lock: 읽기 동시 / 쓰기 단독</span></li>
+        <li><span>Spinlock vs Mutex: 대기 방식 차이</span></li>
+      </ul>
+    </div>
+
+    <!-- U04 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 04</span>
+        <span class="unit-tag tag-gcd">Operation</span>
+      </div>
+      <div class="unit-title">Operation / OperationQueue</div>
+      <div class="unit-subtitle">취소 · 의존성 · 우선순위</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">Operation</span>: 상태 머신 (pending→ready→executing→finished)</span></li>
+        <li><span>BlockOperation: 클로저 래핑 편의 클래스</span></li>
+        <li><span><span class="concept-key">cancel()</span>: 협력적 취소 신호 (isCancelled 확인 필요)</span></li>
+        <li><span><span class="concept-key">addDependency</span>: DAG 의존성 체인 구성</span></li>
+        <li><span>OperationQueue: GCD 스레드 풀 기반 스케줄러</span></li>
+        <li><span><span class="concept-key">maxConcurrentOperationCount</span>: 동시 실행 상한</span></li>
+        <li><span>qualityOfService + queuePriority: 우선순위</span></li>
+        <li><span>KVO: isExecuting / isFinished 상태 관찰</span></li>
+      </ul>
+    </div>
+
+    <!-- U05 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 05</span>
+        <span class="unit-tag tag-async">Swift Concurrency</span>
+      </div>
+      <div class="unit-title">async/await 기초</div>
+      <div class="unit-subtitle">코루틴 · 구조적 동시성 · Continuation</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">Coroutine</span>: suspend/resume 실행 단위</span></li>
+        <li><span>Suspension Point: await 위치, 스레드 해제 지점</span></li>
+        <li><span><span class="concept-key">async</span>: 일시 중단 가능 함수 선언</span></li>
+        <li><span><span class="concept-key">await</span>: 비블로킹 결과 대기</span></li>
+        <li><span><span class="concept-key">구조적 동시성</span>: 부모 스코프에 종속된 생명주기</span></li>
+        <li><span>async throws: try await + do-catch 통합</span></li>
+        <li><span><span class="concept-key">withCheckedContinuation</span>: 콜백→async 브릿지</span></li>
+        <li><span>AsyncSequence: for await in 비동기 시퀀스</span></li>
+      </ul>
+    </div>
+
+    <!-- U06 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 06</span>
+        <span class="unit-tag tag-async">Swift Concurrency</span>
+      </div>
+      <div class="unit-title">async/await 심화</div>
+      <div class="unit-subtitle">Task · TaskGroup · async let</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">Task</span>: 독립 비동기 컨텍스트 생성 단위</span></li>
+        <li><span>Task.init vs detached: 컨텍스트 상속 여부</span></li>
+        <li><span><span class="concept-key">협력적 취소</span>: cancel() + isCancelled 확인</span></li>
+        <li><span>Task.checkCancellation(): CancellationError throw</span></li>
+        <li><span><span class="concept-key">async let</span>: 즉시 병렬 시작, 나중에 await</span></li>
+        <li><span><span class="concept-key">withTaskGroup</span>: 동적 개수 병렬 작업</span></li>
+        <li><span>withThrowingTaskGroup: 에러 시 그룹 자동 취소</span></li>
+        <li><span>순차 Σ(t) vs 병렬 max(t) 성능 차이</span></li>
+      </ul>
+    </div>
+
+    <!-- U07 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 07</span>
+        <span class="unit-tag tag-actor">Actor</span>
+      </div>
+      <div class="unit-title">Actor</div>
+      <div class="unit-subtitle">Data Race를 컴파일러가 막는 방법</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">Data Race</span>: 동시 접근 + 쓰기 = UB</span></li>
+        <li><span><span class="concept-key">actor</span>: 직렬 접근 컴파일러 강제 참조 타입</span></li>
+        <li><span>Actor Isolation: 내부 접근 직렬 보장</span></li>
+        <li><span>외부 접근: 반드시 await 필요</span></li>
+        <li><span><span class="concept-key">nonisolated</span>: 동기 외부 접근 허용 (상태 접근 불가)</span></li>
+        <li><span><span class="concept-key">Actor Reentrancy</span>: await 중단 중 재진입 허용</span></li>
+        <li><span>Global Actor: 앱 전체 단일 인스턴스 Actor</span></li>
+        <li><span>Thread Sanitizer(TSan): 런타임 Race 탐지</span></li>
+      </ul>
+    </div>
+
+    <!-- U08 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 08</span>
+        <span class="unit-tag tag-actor">Sendable</span>
+      </div>
+      <div class="unit-title">Sendable</div>
+      <div class="unit-subtitle">스레드 안전성을 타입 시스템으로 보장</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">Sendable</span>: 동시성 경계를 안전하게 넘기는 타입</span></li>
+        <li><span>동시성 경계: 서로 다른 실행 컨텍스트 사이</span></li>
+        <li><span>struct/enum: 저장 프로퍼티 Sendable이면 자동 채택</span></li>
+        <li><span>actor: 격리 보장 → 암묵적 Sendable</span></li>
+        <li><span><span class="concept-key">@unchecked Sendable</span>: 검사 우회, 직접 책임</span></li>
+        <li><span>@Sendable 클로저: Task 캡처 값도 Sendable 강제</span></li>
+        <li><span>Swift 6 strict concurrency checking</span></li>
+        <li><span>경계 처리: 복사본 생성 or Actor 내부로 이동</span></li>
+      </ul>
+    </div>
+
+    <!-- U09 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 09</span>
+        <span class="unit-tag tag-actor">MainActor</span>
+      </div>
+      <div class="unit-title">@MainActor</div>
+      <div class="unit-subtitle">UI 업데이트를 안전하게 하는 방법</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">@MainActor</span>: 메인 스레드 격리 선언 속성</span></li>
+        <li><span>Global Actor: 앱 전체 단일 인스턴스 특수 Actor</span></li>
+        <li><span>UIKit Non-thread-safe: 렌더링·이벤트 메인 전용</span></li>
+        <li><span>@MainActor func: 호출 시 자동 메인 전환</span></li>
+        <li><span>@MainActor class: 타입 전체 메인 격리</span></li>
+        <li><span><span class="concept-key">MainActor.run</span>: 임의 컨텍스트에서 메인 블록 실행</span></li>
+        <li><span>nonisolated: 일부 메서드만 격리 제외</span></li>
+        <li><span>DispatchQueue.main vs @MainActor: 런타임 vs 컴파일러</span></li>
+      </ul>
+    </div>
+
+    <!-- U10 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 10</span>
+        <span class="unit-tag tag-combine">Combine</span>
+      </div>
+      <div class="unit-title">Combine 기초</div>
+      <div class="unit-subtitle">Publisher · Subscriber · Operator</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">Reactive Programming</span>: 스트림 + 변화 전파 선언적 표현</span></li>
+        <li><span>Publisher: Output 방출 + Failure 전달 타입</span></li>
+        <li><span>Subscriber: 값 수신·처리 (sink, assign)</span></li>
+        <li><span><span class="concept-key">PassthroughSubject</span>: 초기값 없는 외부 주입 Publisher</span></li>
+        <li><span><span class="concept-key">CurrentValueSubject</span>: 초기값 있음, 현재값 조회 가능</span></li>
+        <li><span>flatMap: Publisher 반환 변환 + 내부 병합</span></li>
+        <li><span>debounce: 마지막 값 후 일정 시간 대기</span></li>
+        <li><span><span class="concept-key">Back-pressure</span>: Subscriber가 demand 제어</span></li>
+      </ul>
+    </div>
+
+    <!-- U11 -->
+    <div class="unit-card">
+      <div class="unit-header">
+        <span class="unit-num">UNIT 11</span>
+        <span class="unit-tag tag-combine">Combine</span>
+      </div>
+      <div class="unit-title">Combine 심화</div>
+      <div class="unit-subtitle">에러 처리 · 스케줄러 · 메모리 관리</div>
+      <ul class="concept-list">
+        <li><span><span class="concept-key">catch</span>: 에러 → 대체 Publisher로 복구</span></li>
+        <li><span>retry(N): 업스트림 N회 재구독</span></li>
+        <li><span>replaceError(with:): Failure → Never 변환</span></li>
+        <li><span><span class="concept-key">subscribe(on:)</span>: 업스트림 생산 스케줄러 지정</span></li>
+        <li><span><span class="concept-key">receive(on:)</span>: 다운스트림 수신 스케줄러 지정</span></li>
+        <li><span><span class="concept-key">AnyCancellable</span>: 구독 토큰, 해제 시 자동 취소</span></li>
+        <li><span>store(in:): 소유 객체 생명주기와 동기화</span></li>
+        <li><span>[weak self]: sink 클로저 retain cycle 방지</span></li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- CONCEPTS DEEP DIVE -->
+<section class="concepts-section" id="concepts">
+  <div style="padding: 4rem 4rem 0">
+    <div class="section-label">Deep Dive</div>
+    <h2 class="section-title">핵심 개념 상세</h2>
+  </div>
+
+  <div class="concept-tabs">
+    <button class="tab-btn active" onclick="showTab(0)">Data Race</button>
+    <button class="tab-btn" onclick="showTab(1)">Actor 격리</button>
+    <button class="tab-btn" onclick="showTab(2)">async/await 동작</button>
+    <button class="tab-btn" onclick="showTab(3)">GCD Barrier</button>
+    <button class="tab-btn" onclick="showTab(4)">Combine 파이프라인</button>
+  </div>
+
+  <div class="concept-panels">
+
+    <!-- Tab 0: Data Race -->
+    <div class="concept-panel active">
+      <div class="concept-theory">
+        <h3>Data Race란?</h3>
+        <p>두 스레드가 동시에 같은 메모리 위치에 접근하고, 그 중 하나 이상이 쓰기 작업일 때 발생하는 미정의 동작(Undefined Behavior)입니다.</p>
+        <ul>
+          <li>비결정적(non-deterministic) — 실행할 때마다 결과가 다를 수 있음</li>
+          <li>재현이 어려워 디버깅이 까다로움 — "하이젠버그"</li>
+          <li>Xcode Thread Sanitizer(TSan)로 런타임 탐지 가능</li>
+          <li>Swift 6부터 컴파일 타임에 Sendable/Actor로 정적 방지</li>
+        </ul>
+      </div>
+      <div>
+        <div class="code-label">// Data Race 발생 예제</div>
+        <div class="code-block"><pre><span class="cmt">// ❌ Thread-safe하지 않은 카운터</span>
+<span class="kw">class</span> <span class="type">UnsafeCounter</span> {
+    <span class="kw">var</span> count = <span class="num">0</span>
+    <span class="kw">func</span> <span class="fn">increment</span>() {
+        count += <span class="num">1</span> <span class="cmt">// 읽기→계산→쓰기 사이에</span>
+                  <span class="cmt">// 다른 스레드 개입 가능!</span>
+    }
+}
+
+<span class="cmt">// ✅ Actor로 해결</span>
+<span class="kw">actor</span> <span class="type">SafeCounter</span> {
+    <span class="kw">var</span> count = <span class="num">0</span>
+    <span class="kw">func</span> <span class="fn">increment</span>() {
+        count += <span class="num">1</span> <span class="cmt">// 컴파일러가 직렬화 보장</span>
+    }
+}
+
+<span class="kw">let</span> counter = <span class="type">SafeCounter</span>()
+<span class="kw">await</span> counter.<span class="fn">increment</span>() <span class="cmt">// await 필수</span></pre></div>
+      </div>
+    </div>
+
+    <!-- Tab 1: Actor 격리 -->
+    <div class="concept-panel">
+      <div class="concept-theory">
+        <h3>Actor 격리(Isolation) 모델</h3>
+        <p>Actor는 내부 상태에 대한 모든 접근을 하나의 직렬 실행 흐름으로 제한합니다. 이를 '격리(Isolation)'라고 합니다.</p>
+        <ul>
+          <li><strong>Actor 내부</strong>: 동기 접근 가능 (이미 격리 컨텍스트)</li>
+          <li><strong>Actor 외부</strong>: 반드시 await — 다른 컨텍스트에서 접근</li>
+          <li><strong>nonisolated</strong>: 저장 프로퍼티 접근 없는 메서드에만 사용</li>
+          <li><strong>Reentrancy</strong>: await 중단 동안 다른 메서드가 실행될 수 있음</li>
+        </ul>
+      </div>
+      <div>
+        <div class="code-label">// Actor 격리 모델</div>
+        <div class="code-block"><pre><span class="kw">actor</span> <span class="type">BankAccount</span> {
+    <span class="kw">private</span>(<span class="kw">set</span>) <span class="kw">var</span> balance: <span class="type">Double</span>
+
+    <span class="kw">func</span> <span class="fn">deposit</span>(_ amount: <span class="type">Double</span>) {
+        balance += amount <span class="cmt">// 내부: 동기 OK</span>
+    }
+
+    <span class="kw">nonisolated var</span> description: <span class="type">String</span> {
+        <span class="str">"BankAccount"</span> <span class="cmt">// 상태 접근 없음</span>
+    }
+}
+
+<span class="kw">let</span> account = <span class="type">BankAccount</span>(balance: <span class="num">1000</span>)
+
+<span class="cmt">// 외부: await 필수</span>
+<span class="kw">await</span> account.<span class="fn">deposit</span>(<span class="num">500</span>)
+<span class="kw">let</span> bal = <span class="kw">await</span> account.balance
+
+<span class="cmt">// nonisolated: await 불필요</span>
+<span class="kw">let</span> desc = account.description</pre></div>
+      </div>
+    </div>
+
+    <!-- Tab 2: async/await -->
+    <div class="concept-panel">
+      <div class="concept-theory">
+        <h3>async/await 동작 원리</h3>
+        <p>await는 스레드를 블로킹(blocking)하지 않습니다. 대신 현재 실행 흐름을 '일시 중단(suspend)'하고, 스레드를 해제하여 다른 작업이 실행될 수 있도록 합니다.</p>
+        <ul>
+          <li>await 지점에서 코루틴이 일시 중단됨</li>
+          <li>해제된 스레드는 다른 작업을 수행</li>
+          <li>결과가 준비되면 같은 or 다른 스레드에서 재개</li>
+          <li>순차처럼 읽히지만 내부는 비동기적으로 동작</li>
+        </ul>
+      </div>
+      <div>
+        <div class="code-label">// 순차 vs 병렬 성능 비교</div>
+        <div class="code-block"><pre><span class="cmt">// ❌ 순차: 총 0.3초 (0.1+0.1+0.1)</span>
+<span class="kw">let</span> a = <span class="kw">await</span> <span class="fn">fetchA</span>() <span class="cmt">// 0.1s 대기</span>
+<span class="kw">let</span> b = <span class="kw">await</span> <span class="fn">fetchB</span>() <span class="cmt">// 0.1s 대기</span>
+<span class="kw">let</span> c = <span class="kw">await</span> <span class="fn">fetchC</span>() <span class="cmt">// 0.1s 대기</span>
+
+<span class="cmt">// ✅ async let: 총 ≈0.1초 (max)</span>
+<span class="kw">async let</span> a = <span class="fn">fetchA</span>() <span class="cmt">// 즉시 시작</span>
+<span class="kw">async let</span> b = <span class="fn">fetchB</span>() <span class="cmt">// 즉시 시작</span>
+<span class="kw">async let</span> c = <span class="fn">fetchC</span>() <span class="cmt">// 즉시 시작</span>
+<span class="kw">let</span> result = <span class="kw">await</span> (a, b, c)</pre></div>
+      </div>
+    </div>
+
+    <!-- Tab 3: GCD Barrier -->
+    <div class="concept-panel">
+      <div class="concept-theory">
+        <h3>Reader-Writer Lock 패턴</h3>
+        <p>Concurrent Queue + Barrier를 조합하면 읽기는 동시에, 쓰기는 단독으로 실행하는 Reader-Writer Lock 패턴을 구현할 수 있습니다.</p>
+        <ul>
+          <li>읽기 (sync): 여러 스레드 동시 실행 → 성능 최대화</li>
+          <li>쓰기 (async + .barrier): 이전 작업 완료 후 단독 실행</li>
+          <li>쓰기 완료 후 읽기 작업 재개</li>
+          <li>OS 뮤텍스 없이 GCD만으로 구현 가능</li>
+        </ul>
+      </div>
+      <div>
+        <div class="code-label">// Thread-safe Cache</div>
+        <div class="code-block"><pre><span class="kw">class</span> <span class="type">ThreadSafeCache</span>&lt;<span class="type">K: Hashable, V</span>&gt; {
+    <span class="kw">private var</span> store: [<span class="type">K</span>: <span class="type">V</span>] = [:]
+    <span class="kw">private let</span> queue = <span class="type">DispatchQueue</span>(
+        label: <span class="str">"cache"</span>,
+        attributes: <span class="type">.concurrent</span>
+    )
+
+    <span class="kw">func</span> <span class="fn">read</span>(key: <span class="type">K</span>) -> <span class="type">V</span>? {
+        <span class="cmt">// 동시 읽기 허용</span>
+        queue.<span class="fn">sync</span> { store[key] }
+    }
+
+    <span class="kw">func</span> <span class="fn">write</span>(key: <span class="type">K</span>, value: <span class="type">V</span>) {
+        <span class="cmt">// 단독 쓰기 (barrier)</span>
+        queue.<span class="fn">async</span>(flags: <span class="type">.barrier</span>) {
+            <span class="kw">self</span>.store[key] = value
+        }
+    }
+}</pre></div>
+      </div>
+    </div>
+
+    <!-- Tab 4: Combine pipeline -->
+    <div class="concept-panel">
+      <div class="concept-theory">
+        <h3>Combine 파이프라인 구조</h3>
+        <p>Combine은 Publisher → Operator → Subscriber의 단방향 데이터 파이프라인입니다. 에러 처리와 스케줄러 전환이 파이프라인 중간에 선언적으로 배치됩니다.</p>
+        <ul>
+          <li>subscribe(on:): 업스트림(생산) 스케줄러 — 네트워크·파일 I/O</li>
+          <li>receive(on:): 다운스트림(수신) 스케줄러 — UI 업데이트</li>
+          <li>AnyCancellable 미저장 → 즉시 구독 취소 (흔한 버그)</li>
+          <li>[weak self]: sink 클로저 내 retain cycle 방지</li>
+        </ul>
+      </div>
+      <div>
+        <div class="code-label">// 실전 네트워크 파이프라인</div>
+        <div class="code-block"><pre><span class="type">URLSession</span>.shared
+    .<span class="fn">dataTaskPublisher</span>(for: url)
+    .<span class="fn">map</span>(\.<span class="fn">data</span>)
+    .<span class="fn">decode</span>(type: <span class="type">User</span>.self,
+            decoder: <span class="type">JSONDecoder</span>())
+    .<span class="fn">retry</span>(<span class="num">2</span>)
+    .<span class="fn">catch</span> { _ <span class="kw">in</span>
+        <span class="type">Just</span>(<span class="type">User</span>.placeholder)
+    }
+    .<span class="fn">receive</span>(on: <span class="type">DispatchQueue</span>.main)
+    .<span class="fn">sink</span>(
+        receiveCompletion: { _ <span class="kw">in</span> },
+        receiveValue: { [<span class="kw">weak self</span>] user <span class="kw">in</span>
+            <span class="kw">self</span>?.viewModel.user = user
+        }
+    )
+    .<span class="fn">store</span>(in: &cancellables)</pre></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- COMPARISON TABLE -->
+<section class="compare-section" id="compare">
+  <div class="section-label">Decision Guide</div>
+  <h2 class="section-title">기술 선택 가이드</h2>
+  <p class="section-sub" style="margin-bottom:2rem">상황에 따른 최적 동시성 기술 선택 기준입니다.</p>
+
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>상황</th>
+        <th>권장 기술</th>
+        <th>이유</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>단순 백그라운드 작업 + UI 업데이트</td>
+        <td><span class="badge badge-swift">async/await</span><span class="badge badge-swift">@MainActor</span></td>
+        <td>가독성·컴파일러 안전성 최고</td>
+      </tr>
+      <tr>
+        <td>독립된 N개 작업 동시 실행 (정적)</td>
+        <td><span class="badge badge-swift">async let</span></td>
+        <td>Σ(t) → max(t) 성능 이득</td>
+      </tr>
+      <tr>
+        <td>배열 기반 동적 병렬 작업</td>
+        <td><span class="badge badge-swift">TaskGroup</span></td>
+        <td>동적 개수 + 에러 자동 전파</td>
+      </tr>
+      <tr>
+        <td>공유 가변 상태 보호</td>
+        <td><span class="badge badge-swift">actor</span></td>
+        <td>컴파일러 강제 격리</td>
+      </tr>
+      <tr>
+        <td>레거시 콜백 API 래핑</td>
+        <td><span class="badge badge-swift">Continuation</span></td>
+        <td>async 세계로 브릿지</td>
+      </tr>
+      <tr>
+        <td>복잡한 작업 파이프라인 (취소·의존성)</td>
+        <td><span class="badge badge-gcd">OperationQueue</span></td>
+        <td>의존성 DAG, cancel() 지원</td>
+      </tr>
+      <tr>
+        <td>선언적 이벤트 스트림 (검색, 폼)</td>
+        <td><span class="badge badge-swift">Combine</span></td>
+        <td>debounce·combineLatest 연산자</td>
+      </tr>
+      <tr>
+        <td>읽기 많고 쓰기 가끔인 공유 자원</td>
+        <td><span class="badge badge-gcd">Concurrent + Barrier</span></td>
+        <td>Reader-Writer Lock 패턴</td>
+      </tr>
+      <tr>
+        <td>여러 비동기 작업 완료 후 한 번에 처리</td>
+        <td><span class="badge badge-gcd">DispatchGroup</span></td>
+        <td>iOS 13 이하 호환 필요 시</td>
+      </tr>
+      <tr>
+        <td>동시 접근 수 제한</td>
+        <td><span class="badge badge-gcd">DispatchSemaphore</span></td>
+        <td>카운팅 세마포어</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- CHECKLIST -->
+<section class="checklist-section" id="checklist">
+  <div class="section-label">Self Assessment</div>
+  <h2 class="section-title">학습 완료 체크리스트</h2>
+  <div class="checklist-grid">
+
+    <div class="checklist-card">
+      <h4>🧵 OS 기초</h4>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>Thread와 Process 차이를 iOS 메모리 구조로 설명할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>메인 스레드가 UI 전용인 이유를 RunLoop와 함께 설명할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>Race Condition을 코드로 재현하고 수정할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>Context Switching 비용을 Thread와 Process 비교로 설명할 수 있다</span></div>
+    </div>
+
+    <div class="checklist-card">
+      <h4>⚡ GCD</h4>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>sync/async, serial/concurrent 4가지 조합을 모두 설명할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>Deadlock 3가지 패턴을 코드로 보여주고 해결할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>Barrier로 Thread-safe Cache를 구현할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>DispatchGroup으로 여러 API를 동시 호출하고 완료를 감지할 수 있다</span></div>
+    </div>
+
+    <div class="checklist-card">
+      <h4>🚀 Swift Concurrency</h4>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>await가 스레드를 블로킹하지 않는 이유를 설명할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>async let과 TaskGroup의 차이와 사용 시점을 설명할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>withCheckedContinuation으로 콜백 API를 래핑할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>협력적 취소 패턴을 구현하고 CancellationError를 처리할 수 있다</span></div>
+    </div>
+
+    <div class="checklist-card">
+      <h4>🔒 Actor & Sendable</h4>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>Actor Reentrancy 문제를 설명하고 방어 코드를 작성할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>@MainActor ViewModel로 전체 MVVM 비동기 흐름을 구현할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>@unchecked Sendable의 위험성을 설명하고 Actor로 대체할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>Swift 6 strict concurrency 오류를 해결할 수 있다</span></div>
+    </div>
+
+    <div class="checklist-card">
+      <h4>🔗 Combine</h4>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>AnyCancellable 미저장 버그를 Instruments로 진단할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>subscribe(on:)과 receive(on:)의 차이를 설명할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>assign(to: &$published)이 retain cycle 없는 이유를 설명할 수 있다</span></div>
+      <div class="check-item" onclick="toggleCheck(this)"><div class="check-box"></div><span>exponential backoff retry 파이프라인을 Combine으로 구현할 수 있다</span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- INTERVIEW Q&A -->
+<section class="interview-section" id="interview">
+  <div class="section-label">Interview Prep</div>
+  <h2 class="section-title">면접 Q&A</h2>
+  <p class="section-sub" style="margin-bottom:2rem">클릭하면 핵심 답변 포인트가 펼쳐집니다.</p>
+
+  <div class="qa-list">
+    <div class="qa-item" onclick="toggleQA(this)">
+      <div class="qa-q">Thread와 Process의 차이를 iOS 관점에서 설명하세요.</div>
+      <div class="qa-a">Process는 고유한 메모리 공간(Code/Data/Heap/Stack)을 가지는 독립 실행 단위입니다. iOS에서 앱 하나가 하나의 Process입니다. Thread는 Process 내의 경량 실행 단위로, 같은 Heap·Data를 공유하며 Stack만 개별적으로 가집니다. Thread 간 전환(Context Switching) 비용이 Process 전환보다 훨씬 작은 이유도 메모리 공간 교체가 필요 없기 때문입니다. iOS의 메인 스레드는 UIKit/SwiftUI 렌더링과 이벤트 처리를 담당하는 특수한 Thread입니다.</div>
+    </div>
+    <div class="qa-item" onclick="toggleQA(this)">
+      <div class="qa-q">await는 스레드를 블로킹하나요? 동작 원리를 설명하세요.</div>
+      <div class="qa-a">아니요. await는 스레드를 블로킹(blocking)하지 않습니다. 대신 현재 실행 흐름(코루틴)을 '일시 중단(suspend)'하고 스레드를 해제합니다. 해제된 스레드는 다른 작업을 수행할 수 있으며, 기다리던 결과가 준비되면 같은 또는 다른 스레드에서 재개(resume)됩니다. 이것이 Thread.sleep(blocking)과 Task.sleep(non-blocking)의 근본적인 차이입니다.</div>
+    </div>
+    <div class="qa-item" onclick="toggleQA(this)">
+      <div class="qa-q">Actor와 Serial DispatchQueue의 가장 큰 차이는 무엇인가요?</div>
+      <div class="qa-a">가장 큰 차이는 '컴파일러 강제 여부'입니다. Actor는 컴파일러가 외부 접근 시 await 없이는 컴파일 자체를 거부합니다. 개발자가 실수로 await를 빠뜨리면 컴파일 에러가 납니다. 반면 Serial DispatchQueue는 런타임 보호만 제공하며, 개발자가 올바른 큐로 작업을 제출하는 것을 잊어도 컴파일러는 알려주지 않습니다. 또한 Actor는 Sendable과 통합되어 Swift 6의 타입 시스템과 연동됩니다.</div>
+    </div>
+    <div class="qa-item" onclick="toggleQA(this)">
+      <div class="qa-q">Actor Reentrancy란 무엇이고 어떻게 방어하나요?</div>
+      <div class="qa-a">Actor는 await 일시 중단 지점에서 다른 메서드가 같은 Actor에서 실행될 수 있습니다. 이를 Reentrancy(재진입)라고 합니다. 예를 들어 캐시 확인 후 네트워크 요청(await)하는 사이에 다른 호출이 같은 캐시 키로 들어오면 중복 요청이 발생합니다. 방어 방법: await 전에 "이미 요청 중"임을 나타내는 플래그(inFlight Set 등)를 확인하거나, await 이후에 상태를 다시 검증하는 방어 코드를 추가합니다.</div>
+    </div>
+    <div class="qa-item" onclick="toggleQA(this)">
+      <div class="qa-q">AnyCancellable을 저장하지 않으면 어떻게 되나요?</div>
+      <div class="qa-a">AnyCancellable은 Combine 구독의 생명주기를 관리하는 토큰 객체입니다. 이 객체가 메모리에서 해제되는 순간 구독이 자동으로 취소됩니다. store(in: &cancellables)로 Set에 저장하지 않으면 해당 줄 실행 직후 임시 변수가 해제되어 즉시 구독이 취소됩니다. 결과적으로 send()나 Publisher가 값을 방출해도 sink가 전혀 반응하지 않는 것처럼 보입니다. 이것은 Combine을 처음 쓸 때 가장 많이 하는 실수 중 하나입니다.</div>
+    </div>
+    <div class="qa-item" onclick="toggleQA(this)">
+      <div class="qa-q">subscribe(on:)과 receive(on:)의 차이는?</div>
+      <div class="qa-a">subscribe(on:)은 업스트림(Publisher → 데이터 생산) 쪽이 실행되는 스케줄러를 지정합니다. 네트워크 요청이나 파일 I/O처럼 데이터를 생산하는 작업을 백그라운드 큐에서 실행하고 싶을 때 사용합니다. receive(on:)은 다운스트림(Operator → Subscriber → UI 업데이트)이 실행되는 스케줄러를 지정합니다. sink나 assign에서 UI를 업데이트하려면 .receive(on: RunLoop.main)으로 메인 스레드를 보장해야 합니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">
+    <div style="font-size:1rem; font-weight:700; color:var(--text); margin-bottom:0.3rem">개발자리</div>
+    <div>동시성과 병렬 프로그래밍을 위한 운영체제 · iOS Developer Series</div>
+  </div>
+  <div class="footer-links">
+    <a href="https://github.com/your-username/concurrency-os-playground" target="_blank">GitHub</a>
+    <a href="https://youtube.com/@개발자리" target="_blank">YouTube</a>
+    <a href="#units">Units</a>
+    <a href="#interview">면접 Q&A</a>
+  </div>
+</footer>
+
+<script>
+  // Tab switching
+  const panels = document.querySelectorAll('.concept-panel');
+  const tabs = document.querySelectorAll('.tab-btn');
+
+  function showTab(index) {
+    panels.forEach((p, i) => p.classList.toggle('active', i === index));
+    tabs.forEach((t, i) => t.classList.toggle('active', i === index));
+  }
+
+  // Checklist
+  function toggleCheck(el) {
+    el.classList.toggle('checked');
+    saveChecklist();
+  }
+
+  function saveChecklist() {
+    const items = document.querySelectorAll('.check-item');
+    const state = [...items].map(el => el.classList.contains('checked'));
+    try { localStorage.setItem('checklist', JSON.stringify(state)); } catch(e) {}
+  }
+
+  function loadChecklist() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('checklist') || '[]');
+      const items = document.querySelectorAll('.check-item');
+      saved.forEach((checked, i) => {
+        if (checked && items[i]) items[i].classList.add('checked');
+      });
+    } catch(e) {}
+  }
+
+  // Q&A accordion
+  function toggleQA(el) {
+    el.classList.toggle('open');
+  }
+
+  // Scroll reveal
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1';
+        e.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.unit-card').forEach((el, i) => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(16px)';
+    el.style.transition = `opacity 0.4s ${i * 0.04}s ease, transform 0.4s ${i * 0.04}s ease`;
+    observer.observe(el);
+  });
+
+  loadChecklist();
+</script>
+</body>
+</html>
