@@ -6,6 +6,9 @@
 [![Swift](https://img.shields.io/badge/Swift-5.9+-orange?logo=swift)](https://swift.org)
 [![Platform](https://img.shields.io/badge/Platform-iOS%2015%2B%20%7C%20macOS%2012%2B-blue?logo=apple)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen?logo=github)](https://m1zz.github.io/concurrency-os-playground/)
+
+> 🌐 **강의 페이지**: https://m1zz.github.io/concurrency-os-playground/
 
 ---
 
