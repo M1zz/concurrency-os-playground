@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unit 01 — Thread vs Process | 동시성 OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Gowun+Batang:wght@400;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="unit.css">
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="index.html">concurrency-os</a>
+  <div class="nav-links">
+    <a href="index.html">← 홈</a>
+    <a href="https://github.com/M1zz/concurrency-os-playground" target="_blank">GitHub</a>
+  </div>
+</nav>
+
+<div class="page-body">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <p class="sidebar-title">커리큘럼</p>
+    <ul class="sidebar-nav">
+      <li><a href="unit01.html" class="unit-link current">01 · Thread vs Process</a></li>
+      <li><a href="unit02.html" class="unit-link">02 · GCD 기초</a></li>
+      <li><a href="unit03.html" class="unit-link">03 · GCD 심화</a></li>
+      <li><a href="unit04.html" class="unit-link">04 · OperationQueue</a></li>
+      <li><a href="unit05.html" class="unit-link">05 · async/await 기초</a></li>
+      <li><a href="unit06.html" class="unit-link">06 · async/await 심화</a></li>
+      <li><a href="unit07.html" class="unit-link">07 · Actor</a></li>
+      <li><a href="unit08.html" class="unit-link">08 · Sendable</a></li>
+      <li><a href="unit09.html" class="unit-link">09 · @MainActor</a></li>
+      <li><a href="unit10.html" class="unit-link">10 · Combine 기초</a></li>
+      <li><a href="unit11.html" class="unit-link">11 · Combine 심화</a></li>
+    </ul>
+  </aside>
+
+  <!-- MAIN -->
+  <div>
+    <!-- HERO -->
+    <div class="unit-hero">
+      <div class="hero-orb" style="background: radial-gradient(circle, rgba(251,191,36,0.15), transparent 70%);"></div>
+      <div class="hero-content fade-in">
+        <div class="unit-num-badge tag-os">Unit 01 · OS Fundamentals</div>
+        <h1 class="unit-hero-title">Thread <span style="color:var(--text3)">vs</span> Process</h1>
+        <p class="unit-hero-sub">Thread, ProcessInfo, DispatchQueue</p>
+        <p class="unit-hero-desc">OS가 프로그램을 실행하는 두 가지 단위 — Process와 Thread의 차이, Context Switching 비용, 그리고 Race Condition이 발생하는 원리를 iOS 런타임 관점에서 이해합니다.</p>
+      </div>
+    </div>
+
+    <div class="main-content">
+
+      <!-- 핵심 개념 -->
+      <div class="section">
+        <p class="section-label">Core Concepts</p>
+        <h2 class="section-title">핵심 개념 정리</h2>
+        <div class="concepts-grid">
+          <div class="concept-card">
+            <div class="concept-card-title">Process (프로세스)</div>
+            <ul>
+              <li>OS가 프로그램을 실행하는 독립 단위</li>
+              <li>고유한 메모리 공간: Code / Data / Heap / Stack 영역 보유</li>
+              <li>iOS에서 앱 하나 = 프로세스 하나 (App Sandbox)</li>
+              <li>프로세스 간 통신은 IPC(Inter-Process Communication) 필요</li>
+            </ul>
+          </div>
+          <div class="concept-card">
+            <div class="concept-card-title">Thread (스레드)</div>
+            <ul>
+              <li>프로세스 내에서 실행되는 경량 실행 단위</li>
+              <li>Code · Data · Heap 공유, Stack만 개별 소유</li>
+              <li>생성 비용: Thread &lt;&lt; Process</li>
+              <li>iOS: 메인 스레드(UI) + 백그라운드 스레드 구조</li>
+            </ul>
+          </div>
+          <div class="concept-card">
+            <div class="concept-card-title">Context Switching</div>
+            <ul>
+              <li>OS 스케줄러가 실행 단위를 교체하는 과정</li>
+              <li>Thread 전환 비용 &lt;&lt; Process 전환 비용</li>
+              <li>메모리 공간 교체가 불필요하기 때문</li>
+              <li>너무 많은 스레드 → 오히려 Switching 오버헤드 증가</li>
+            </ul>
+          </div>
+          <div class="concept-card">
+            <div class="concept-card-title">Race Condition</div>
+            <ul>
+              <li>두 스레드가 공유 자원에 동시 접근 시 발생</li>
+              <li>결과가 실행 순서에 따라 달라지는 버그</li>
+              <li>비결정적(non-deterministic) — 재현이 어려움</li>
+              <li>예방: Serial Queue, Lock, Actor 등</li>
+            </ul>
+          </div>
+        </div>
+
+        <table class="compare-table">
+          <thead><tr><th>구분</th><th>Process</th><th>Thread</th></tr></thead>
+          <tbody>
+            <tr><td>메모리 공간</td><td>독립 (Code/Data/Heap/Stack 모두)</td><td>Stack만 독립, 나머지 공유</td></tr>
+            <tr><td>생성 비용</td><td>높음</td><td>낮음</td></tr>
+            <tr><td>통신 방법</td><td>IPC (소켓, 파이프 등)</td><td>공유 메모리 직접 접근</td></tr>
+            <tr><td>iOS에서</td><td>앱 1개 = 프로세스 1개</td><td>여러 스레드 동시 실행</td></tr>
+            <tr><td>격리</td><td>강함 (크래시가 다른 프로세스 영향 없음)</td><td>약함 (한 스레드 크래시 → 앱 전체 영향)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 메모리 구조 -->
+      <div class="section">
+        <p class="section-label">Memory Model</p>
+        <h2 class="section-title">Value Type vs Reference Type</h2>
+        <div class="highlight-box info">
+          struct는 Stack에, class는 Heap에 저장됩니다. Stack 접근은 스레드 독립적이므로 안전하지만, Heap의 class 인스턴스를 여러 스레드가 공유할 때 Race Condition이 발생합니다.
+        </div>
+
+        <div class="code-section">
+          <div class="code-label">Stack vs Heap 메모리 영역 체감</div>
+          <div class="code-block-wrap">
+<pre class="code-block"><span class="comment">// ✅ Value Type — Stack에 저장 (복사)</span>
+<span class="keyword">struct</span> <span class="type">PointValue</span> {
+    <span class="keyword">var</span> x: <span class="type">Int</span>
+    <span class="keyword">var</span> y: <span class="type">Int</span>
+}
+
+<span class="keyword">var</span> p1 = <span class="type">PointValue</span>(x: 0, y: 0)
+<span class="keyword">var</span> p2 = p1      <span class="comment">// 복사 — p1과 독립</span>
+p2.x = 99
+<span class="func-name">print</span>(p1.x)     <span class="comment">// → 0  (영향 없음)</span>
+<span class="func-name">print</span>(p2.x)     <span class="comment">// → 99</span>
+
+<span class="comment">// ❌ Reference Type — Heap에 저장 (참조 공유)</span>
+<span class="keyword">class</span> <span class="type">PointRef</span> {
+    <span class="keyword">var</span> x: <span class="type">Int</span>
+    <span class="keyword">var</span> y: <span class="type">Int</span>
+    <span class="keyword">init</span>(x: <span class="type">Int</span>, y: <span class="type">Int</span>) { <span class="keyword">self</span>.x = x; <span class="keyword">self</span>.y = y }
+}
+
+<span class="keyword">let</span> r1 = <span class="type">PointRef</span>(x: 0, y: 0)
+<span class="keyword">let</span> r2 = r1      <span class="comment">// 참조 복사 — 같은 객체</span>
+r2.x = 99
+<span class="func-name">print</span>(r1.x)     <span class="comment">// → 99  (r1도 바뀜!)</span>
+<span class="func-name">print</span>(r2.x)     <span class="comment">// → 99</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Race Condition -->
+      <div class="section">
+        <p class="section-label">Race Condition</p>
+        <h2 class="section-title">안전하지 않은 카운터 vs Thread-safe 카운터</h2>
+
+        <div class="code-section">
+          <div class="code-label">❌ UnsafeCounter — Race Condition 발생 가능</div>
+          <div class="code-block-wrap">
+<pre class="code-block"><span class="keyword">class</span> <span class="type">UnsafeCounter</span> {
+    <span class="keyword">var</span> count = 0
+
+    <span class="keyword">func</span> <span class="func-name">increment</span>() {
+        <span class="comment">// 이 3단계 사이에 다른 스레드가 끼어들 수 있음</span>
+        <span class="comment">// 1. count 읽기</span>
+        <span class="comment">// 2. +1 계산</span>
+        <span class="comment">// 3. count 쓰기</span>
+        count += 1
+    }
+}
+
+<span class="keyword">let</span> counter = <span class="type">UnsafeCounter</span>()
+<span class="keyword">let</span> group = <span class="type">DispatchGroup</span>()
+
+<span class="keyword">for</span> _ <span class="keyword">in</span> 0..&lt;1000 {
+    <span class="type">DispatchQueue</span>.global().<span class="func-name">async</span>(group: group) {
+        counter.<span class="func-name">increment</span>()
+    }
+}
+group.<span class="func-name">wait</span>()
+<span class="func-name">print</span>(counter.count)  <span class="comment">// → 1000이 아닐 수 있음!</span></pre>
+          </div>
+        </div>
+
+        <div class="code-section">
+          <div class="code-label">✅ SafeCounter — Serial Queue로 보호</div>
+          <div class="code-block-wrap">
+<pre class="code-block"><span class="keyword">class</span> <span class="type">SafeCounter</span> {
+    <span class="keyword">private var</span> count = 0
+    <span class="keyword">private let</span> queue = <span class="type">DispatchQueue</span>(label: <span class="string">"com.leeo.safeCounter"</span>)
+
+    <span class="keyword">func</span> <span class="func-name">increment</span>() {
+        queue.<span class="func-name">sync</span> {
+            count += 1   <span class="comment">// 직렬 큐가 한 번에 하나만 실행 보장</span>
+        }
+    }
+
+    <span class="keyword">var</span> value: <span class="type">Int</span> {
+        queue.<span class="func-name">sync</span> { count }
+    }
+}
+
+<span class="keyword">let</span> safe = <span class="type">SafeCounter</span>()
+<span class="keyword">for</span> _ <span class="keyword">in</span> 0..&lt;1000 {
+    <span class="type">DispatchQueue</span>.global().<span class="func-name">async</span>(group: group) {
+        safe.<span class="func-name">increment</span>()
+    }
+}
+group.<span class="func-name">wait</span>()
+<span class="func-name">print</span>(safe.value)   <span class="comment">// → 항상 1000 ✅</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- 스레드 정보 -->
+      <div class="section">
+        <p class="section-label">Thread Info</p>
+        <h2 class="section-title">스레드 & 프로세스 정보 확인</h2>
+        <div class="code-section">
+          <div class="code-label">Thread / ProcessInfo API</div>
+          <div class="code-block-wrap">
+<pre class="code-block"><span class="keyword">import</span> Foundation
+
+<span class="func-name">print</span>(<span class="type">Thread</span>.current)                              <span class="comment">// 현재 스레드</span>
+<span class="func-name">print</span>(<span class="type">Thread</span>.isMainThread)                         <span class="comment">// 메인 스레드 여부</span>
+<span class="func-name">print</span>(<span class="type">ProcessInfo</span>.processInfo.processIdentifier)   <span class="comment">// PID</span>
+<span class="func-name">print</span>(<span class="type">ProcessInfo</span>.processInfo.processorCount)      <span class="comment">// 물리 코어 수</span>
+<span class="func-name">print</span>(<span class="type">ProcessInfo</span>.processInfo.activeProcessorCount) <span class="comment">// 활성 코어 수</span>
+
+<span class="comment">// 백그라운드 → 메인 전환 패턴</span>
+<span class="type">DispatchQueue</span>.global(qos: .userInitiated).<span class="func-name">async</span> {
+    <span class="func-name">print</span>(<span class="string">"백그라운드 | isMain: \(Thread.isMainThread)"</span>)
+
+    <span class="type">DispatchQueue</span>.main.<span class="func-name">async</span> {
+        <span class="func-name">print</span>(<span class="string">"메인 복귀 | isMain: \(Thread.isMainThread)"</span>)
+    }
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- 실습 체크리스트 -->
+      <div class="section">
+        <p class="section-label">Practice</p>
+        <h2 class="section-title">실습 체크리스트</h2>
+        <ul class="checklist">
+          <li><code class="inline">UnsafeCounter</code> 결과가 1000이 아닌 경우를 여러 번 실행하여 확인</li>
+          <li><code class="inline">SafeCounter</code>의 queue를 <code class="inline">concurrent</code>로 바꾸면 어떻게 되는지 실험</li>
+          <li>Value Type과 Reference Type이 스레드 안전성에 미치는 차이를 설명</li>
+        </ul>
+      </div>
+
+      <!-- 면접 질문 -->
+      <div class="section">
+        <p class="section-label">Interview</p>
+        <h2 class="section-title">면접 질문 연습</h2>
+        <div class="qa-list">
+          <div class="qa-item">
+            <div class="qa-q">iOS에서 Thread와 Process의 차이는?</div>
+            <div class="qa-a">Process는 독립된 메모리 공간(Code/Data/Heap/Stack 모두)을 가진 실행 단위입니다. Thread는 프로세스 안에서 Stack만 독립적으로 갖고 나머지를 공유하는 경량 실행 단위입니다. iOS에서 앱 하나는 프로세스 하나이며, 그 안에서 메인 스레드(UI)와 여러 백그라운드 스레드가 동작합니다.</div>
+          </div>
+          <div class="qa-item">
+            <div class="qa-q">메인 스레드가 UI 전용인 이유는?</div>
+            <div class="qa-a">UIKit/AppKit은 thread-safe하게 설계되지 않았습니다. 여러 스레드에서 동시에 UI 컴포넌트에 접근하면 레이아웃 상태가 불일치하거나 크래시가 발생할 수 있습니다. Apple은 이를 단순화하기 위해 "모든 UI 업데이트는 메인 스레드에서"라는 규칙을 강제합니다.</div>
+          </div>
+          <div class="qa-item">
+            <div class="qa-q">Race Condition이란 무엇이고 어떻게 예방하는가?</div>
+            <div class="qa-a">두 스레드가 공유 자원에 동시에 접근하고 그 중 하나 이상이 쓰기를 할 때, 실행 순서에 따라 결과가 달라지는 버그입니다. 예방책으로는 ① Serial DispatchQueue, ② NSLock/mutex, ③ Swift의 actor (컴파일러 강제), ④ Atomic 연산이 있습니다.</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+
+    <!-- UNIT NAVIGATOR -->
+    <div class="unit-nav">
+      <a href="index.html" class="unit-nav-btn">
+        <span class="nav-btn-dir">← 홈으로</span>
+        <span class="nav-btn-title">커리큘럼 전체 보기</span>
+      </a>
+      <a href="unit02.html" class="unit-nav-btn next">
+        <span class="nav-btn-dir">다음 →</span>
+        <span class="nav-btn-title">Unit 02</span>
+        <span class="nav-btn-sub">GCD 기초</span>
+      </a>
+    </div>
+  </div><!-- /right column -->
+</div><!-- /page-body -->
+</body>
+</html>
